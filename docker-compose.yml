@@ -17,7 +17,7 @@ services:
 
   # 2. Apache Kafka 
   kafka:
-    image: bitnami/kafka:3.6
+    image: apache/kafka:3.9.0
     container_name: tracking_kafka
     restart: always
     ports:
