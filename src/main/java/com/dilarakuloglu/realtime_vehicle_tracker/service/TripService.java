@@ -108,18 +108,17 @@ public class TripService {
         trip.setDestLng(dto.destLng());
         trip.setSpeedKmh(dto.speedKmh());
         trip.setStatus(TripStatus.IN_PROGRESS);
+        trip.setStartTime(LocalDateTime.now());
 
+        double distanceKm = GeoUtils.calculateDistance( dto.originLat(), dto.originLng(), dto.destLat(), dto.destLng());
+        long durationSeconds = Math.round(distanceKm / dto.speedKmh() * 3600);
+
+        trip.setStartTime(LocalDateTime.now());
+        trip.setEstimatedDurationSeconds(durationSeconds);
+        
         // test
         System.out.print(trip.getStatus());
         return tripRepository.save(trip);
-    }
-
-    public Trip createTrip(Long vehicleId, Double originLat,
-            Double originLng,
-            Double destLat,
-            Double destLng, Double speedKmh) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'createTrip'");
     }
 
 }
