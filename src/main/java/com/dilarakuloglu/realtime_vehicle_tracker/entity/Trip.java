@@ -16,6 +16,7 @@ public class Trip {
     private Long id;
     private LocalDateTime startTime;
     private Long estimatedDurationSeconds;
+    private double speedKmh;
 
     
     @ManyToOne(fetch = FetchType.LAZY)
