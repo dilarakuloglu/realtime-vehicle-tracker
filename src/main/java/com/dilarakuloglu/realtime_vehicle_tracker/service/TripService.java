@@ -9,6 +9,8 @@ import com.dilarakuloglu.realtime_vehicle_tracker.entity.Trip;
 import com.dilarakuloglu.realtime_vehicle_tracker.entity.Vehicle;
 import com.dilarakuloglu.realtime_vehicle_tracker.enums.TripStatus;
 import com.dilarakuloglu.realtime_vehicle_tracker.enums.VehicleStatus;
+import com.dilarakuloglu.realtime_vehicle_tracker.event.VehicleLocationEvent;
+import com.dilarakuloglu.realtime_vehicle_tracker.kafka.VehicleEventProducer;
 import com.dilarakuloglu.realtime_vehicle_tracker.repository.TripRepository;
 import com.dilarakuloglu.realtime_vehicle_tracker.repository.VehicleRepository;
 import com.dilarakuloglu.realtime_vehicle_tracker.util.GeoUtils;
@@ -26,6 +28,7 @@ public class TripService {
 
     private final TripRepository tripRepository; // bağımlılık için final kullanıyoruz.
     private final VehicleRepository vehicleRepository;
+    private final VehicleEventProducer vehicleEventProducer;
 
     public Trip getTripById(Long id) {
         return tripRepository.findById(id)
@@ -38,22 +41,40 @@ public class TripService {
     public void processTripMovement(Trip trip ){
      Duration elapsed= Duration.between(trip.getStartTime(),LocalDateTime.now());
      Long elapsedSeconds=elapsed.getSeconds();
+     double progressPercent = (double) elapsedSeconds / trip.getEstimatedDurationSeconds();
 
-     double progressPercent= (double) elapsedSeconds/trip.getEstimatedDurationSeconds();
-     if(progressPercent >= 1.0){
-        progressPercent= 1.0;
-        trip.setStatus(TripStatus.COMPLETED);
-        trip.getVehicle().setStatus(VehicleStatus.ARRIVED); 
-     } else{
-        double newLat = trip.getOriginLat() + (trip.getDestLat() - trip.getOriginLat()) * progressPercent;
-    double newLng = trip.getOriginLng() + (trip.getDestLng() - trip.getOriginLng()) * progressPercent;
+     
+        double newLat;
+        double newLng;
+        VehicleStatus vehicleStatus;
+        TripStatus tripStatus;
 
-    trip.getVehicle().setCurrentLat(newLat);
-    trip.getVehicle().setCurrentLng(newLng);
+        if (progressPercent >= 1.0) {
+            progressPercent = 1.0;
+            newLat = trip.getDestLat();
+            newLng = trip.getDestLng();
+            vehicleStatus = VehicleStatus.ARRIVED;
+            tripStatus = TripStatus.COMPLETED;
+        } else {
+            newLat = trip.getOriginLat() + (trip.getDestLat() - trip.getOriginLat()) * progressPercent;
+            newLng = trip.getOriginLng() + (trip.getDestLng() - trip.getOriginLng()) * progressPercent;
+            vehicleStatus = VehicleStatus.MOVING;
+            tripStatus = TripStatus.IN_PROGRESS;
+        }
 
-     }
-     vehicleRepository.save(trip.getVehicle());
-     tripRepository.save (trip);
+        VehicleLocationEvent event = new VehicleLocationEvent(
+                trip.getVehicle().getId(),
+                trip.getId(),
+                newLat,
+                newLng,
+                progressPercent,
+                vehicleStatus,
+                tripStatus,
+                LocalDateTime.now()
+        );
+
+        vehicleEventProducer.publishLocationUpdate(event); 
+
 
 
     }
@@ -63,7 +84,7 @@ public class TripService {
         if(trip.getStatus() != TripStatus.IN_PROGRESS){
         }
         trip.setStatus(TripStatus.COMPLETED);
-        tripRepository.save(trip);
+        tripRepository.save(trip); // kafka
     }
 
     public List<Trip> getActiveTrips(){
@@ -93,13 +114,12 @@ public class TripService {
         // test
         System.out.print("start time :" + trip.getStatus());
         }
-
         */
 
     @Transactional
     public Trip createTrip(TripCreationDto dto) {
-        Vehicle vehicle = vehicleRepository.findById(dto.vehicleId())
-                .orElseThrow(() -> new EntityNotFoundException("Vehicle not found: " + dto.vehicleId()));
+        Vehicle vehicle = vehicleRepository.findById(dto.id())
+                .orElseThrow(() -> new EntityNotFoundException("Vehicle not found: " + dto.id()));
         Trip trip = new Trip();
         trip.setVehicle(vehicle);
         trip.setOriginLat(dto.originLat());
@@ -112,13 +132,12 @@ public class TripService {
 
         double distanceKm = GeoUtils.calculateDistance( dto.originLat(), dto.originLng(), dto.destLat(), dto.destLng());
         long durationSeconds = Math.round(distanceKm / dto.speedKmh() * 3600);
-
         trip.setStartTime(LocalDateTime.now());
         trip.setEstimatedDurationSeconds(durationSeconds);
         
         // test
         System.out.print(trip.getStatus());
-        return tripRepository.save(trip);
+        return tripRepository.save(trip); // kafka entegrasyonu 
     }
 
 }
