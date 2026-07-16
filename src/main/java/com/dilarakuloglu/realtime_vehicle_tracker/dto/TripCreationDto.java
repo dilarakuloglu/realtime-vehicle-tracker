@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Positive;
 
 public record TripCreationDto(
 
-        @NotNull Long vehicleId,
+        @NotNull Long id,
 
         @NotNull @DecimalMin("-90.0") @DecimalMax("90.0") Double originLat,
         @NotNull @DecimalMin("-180.0") @DecimalMax("180.0") Double originLng,
