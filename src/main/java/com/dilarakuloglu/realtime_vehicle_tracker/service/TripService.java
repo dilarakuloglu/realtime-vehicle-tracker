@@ -120,6 +120,11 @@ public class TripService {
     public Trip createTrip(TripCreationDto dto) {
         Vehicle vehicle = vehicleRepository.findById(dto.id())
                 .orElseThrow(() -> new EntityNotFoundException("Vehicle not found: " + dto.id()));
+
+        if (tripRepository.hasActiveTripForVehicle(vehicle.getId())) {
+        throw new IllegalStateException("Vehicle already has an active trip: " + vehicle.getId());
+        }
+
         Trip trip = new Trip();
         trip.setVehicle(vehicle);
         trip.setOriginLat(dto.originLat());
@@ -128,7 +133,6 @@ public class TripService {
         trip.setDestLng(dto.destLng());
         trip.setSpeedKmh(dto.speedKmh());
         trip.setStatus(TripStatus.IN_PROGRESS);
-        trip.setStartTime(LocalDateTime.now());
 
         double distanceKm = GeoUtils.calculateDistance( dto.originLat(), dto.originLng(), dto.destLat(), dto.destLng());
         long durationSeconds = Math.round(distanceKm / dto.speedKmh() * 3600);

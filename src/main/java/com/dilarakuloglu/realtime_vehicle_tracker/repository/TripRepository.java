@@ -12,4 +12,7 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
 
     @Query("SELECT t FROM Trip t WHERE t.status = :status")
     List<Trip> findTripsByStatus(@Param("status") TripStatus status);
+
+    @Query("SELECT COUNT(t) > 0 FROM Trip t WHERE t.vehicle.id = :vehicleId AND t.status = 'IN_PROGRESS'")
+    boolean hasActiveTripForVehicle(@Param("vehicleId") Long vehicleId);
 }
