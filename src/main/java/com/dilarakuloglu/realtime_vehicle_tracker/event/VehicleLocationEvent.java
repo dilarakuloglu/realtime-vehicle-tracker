@@ -16,7 +16,8 @@ public record VehicleLocationEvent(
         TripStatus tripStatus,
         LocalDateTime timestamp,
         Double destLat,
-        Double destLng
+        Double destLng,
+        Double speedKmh
 
         
 

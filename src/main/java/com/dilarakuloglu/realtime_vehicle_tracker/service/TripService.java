@@ -38,10 +38,13 @@ public class TripService {
     public List<Trip> getTripsByStatus(TripStatus status) {
         return tripRepository.findTripsByStatus(status);
     }
+    // Simülasyon zamanını hızlandırma katsayısı: 1 gerçek sn = TIME_SCALE simülasyon sn
+    private static final double TIME_SCALE = 300;
+
     public void processTripMovement(Trip trip ){
      Duration elapsed= Duration.between(trip.getStartTime(),LocalDateTime.now());
-     Long elapsedSeconds=elapsed.getSeconds();
-     double progressPercent = (double) elapsedSeconds / trip.getEstimatedDurationSeconds();
+     double elapsedSeconds = elapsed.getSeconds() * TIME_SCALE;
+     double progressPercent = elapsedSeconds / trip.getEstimatedDurationSeconds();
 
      
         double newLat;
@@ -72,7 +75,8 @@ public class TripService {
                 tripStatus,
                 LocalDateTime.now(),
                 trip.getDestLat(),
-                trip.getDestLng()
+                trip.getDestLng(),
+                trip.getSpeedKmh()
         );
 
         vehicleEventProducer.publishLocationUpdate(event); 

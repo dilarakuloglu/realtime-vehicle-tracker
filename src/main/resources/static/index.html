@@ -291,12 +291,14 @@
             });
         }
 
-        function upsertMarker(vehicleId, lat, lng, status, name, startLat, startLng, targetLat, targetLng) {
+        function upsertMarker(vehicleId, lat, lng, status, name, startLat, startLng, targetLat, targetLng, speed) {
             // Backend'de bu koordinatlar yoksa, her araç için sabit kalacak simüle koordinatlar üretiyoruz
             const sLat = (startLat !== undefined && startLat !== null) ? startLat : (vehicleData[vehicleId]?.startLat || (lat - 0.15));
             const sLng = (startLng !== undefined && startLng !== null) ? startLng : (vehicleData[vehicleId]?.startLng || (lng - 0.20));
             const tLat = (targetLat !== undefined && targetLat !== null) ? targetLat : (vehicleData[vehicleId]?.targetLat || (lat + 0.18));
             const tLng = (targetLng !== undefined && targetLng !== null) ? targetLng : (vehicleData[vehicleId]?.targetLng || (lng + 0.25));
+            // Hız sadece WS event'inden gelir; gelmezse önceki değeri koru
+            const spd = (speed !== undefined && speed !== null) ? speed : vehicleData[vehicleId]?.speed;
 
             // Mesafe hesaplama (Mesafe birimi metre cinsinden döner)
             const currentLatLng = L.latLng(lat, lng);
@@ -321,7 +323,8 @@
                 startLat: sLat,
                 startLng: sLng,
                 targetLat: tLat,
-                targetLng: tLng
+                targetLng: tLng,
+                speed: spd
             };
 
 
@@ -330,6 +333,7 @@
         <h3 style="color: ${colorForStatus(status)}">${vehicleData[vehicleId].name}</h3>
         <div class="popup-row"><strong>Başlangıç:</strong> <span>${sLat.toFixed(4)}, ${sLng.toFixed(4)}</span></div>
         <div class="popup-row"><strong>Hedef:</strong> <span>${tLat.toFixed(4)}, ${tLng.toFixed(4)}</span></div>
+        <div class="popup-row"><strong>Hız:</strong> <span>${spd != null ? Math.round(spd) + ' km/h' : '–'}</span></div>
         <div class="popup-divider"></div>
         <div class="popup-row highlight"><strong>Kalan Mesafe:</strong> <span>${distanceStr}</span></div>
       </div>
@@ -441,7 +445,8 @@
                     event.startLat,
                     event.startLng,
                     event.destLat,
-                    event.destLng
+                    event.destLng,
+                    event.speedKmh
                 );
             });
         }, () => {
