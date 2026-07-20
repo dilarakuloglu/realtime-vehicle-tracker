@@ -31,13 +31,6 @@ public class TripController {
 
     @PostMapping
     public Trip createTrip(@RequestBody TripCreationDto request) {
-        return tripService.createTrip(
-                request.vehicleId(),
-                request.originLat(),
-                request.originLng(),
-                request.destLat(),
-                request.destLng(),
-                request.speedKmh()
-        );
+        return tripService.createTrip(request);
     }
 }

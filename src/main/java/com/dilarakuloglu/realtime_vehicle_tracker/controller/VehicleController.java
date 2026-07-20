@@ -26,8 +26,8 @@ public class VehicleController {
     }
 
     @PostMapping
-    public Vehicle createVehicle(@RequestBody VehicleCreationDto request) {
-        return vehicleService.createVehicle(request);
+    public Vehicle createVehicle(@RequestBody VehicleCreationDto dto) {
+        return vehicleService.createVehicleAt(dto);
     }
 
     @DeleteMapping("/{id}")
