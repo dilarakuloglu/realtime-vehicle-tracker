@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Araç Takip</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        :root {
+            --bg: #0b0f14;
+            --panel: #121822;
+            --panel-border: #1f2937;
+            --text: #e5e9f0;
+            --text-dim: #7d8b9e;
+            --accent: #3ddc97;
+            --idle: #7d8b9e;
+            --moving: #3d8bfd;
+            --arrived: #3ddc97;
+            --mono: 'SF Mono', 'Courier New', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            overflow: hidden;
+        }
+
+        #map {
+            position: absolute;
+            inset: 0;
+            background: var(--bg);
+        }
+
+        .leaflet-tile-pane {
+            filter: saturate(0.35) brightness(0.6) contrast(1.1);
+        }
+
+        #panel {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            z-index: 1000;
+            width: 300px;
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 18px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        }
+
+        #panel h1 {
+            font-size: 14px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin: 0 0 14px 0;
+            font-weight: 600;
+        }
+
+        .spawn-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        #spawn-count {
+            width: 64px;
+            background: var(--bg);
+            border: 1px solid var(--panel-border);
+            color: var(--text);
+            border-radius: 6px;
+            padding: 8px;
+            font-family: var(--mono);
+            font-size: 14px;
+            text-align: center;
+        }
+
+        #spawn-btn {
+            flex: 1;
+            background: var(--accent);
+            color: #06140f;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+
+        #spawn-btn:hover {
+            opacity: 0.85;
+        }
+
+        #spawn-btn:active {
+            opacity: 0.65;
+        }
+
+        #connection-status {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 14px;
+        }
+
+        .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #ef4444;
+        }
+
+        .dot.on {
+            background: var(--accent);
+            box-shadow: 0 0 6px var(--accent);
+        }
+
+        #vehicle-list {
+            max-height: 340px;
+            overflow-y: auto;
+        }
+
+        .vehicle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-top: 1px solid var(--panel-border);
+            font-family: var(--mono);
+            font-size: 12px;
+        }
+
+        .vehicle-row .name {
+            color: var(--text);
+        }
+
+        .vehicle-row .status {
+            font-size: 10px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            padding: 3px 7px;
+            border-radius: 4px;
+        }
+
+        .status.idle {
+            color: var(--idle);
+            background: rgba(125, 139, 158, 0.12);
+        }
+
+        .status.moving {
+            color: var(--moving);
+            background: rgba(61, 139, 253, 0.12);
+        }
+
+        .status.arrived {
+            color: var(--arrived);
+            background: rgba(61, 220, 151, 0.12);
+        }
+
+        .leaflet-control-attribution {
+            background: rgba(11, 15, 20, 0.7) !important;
+            color: var(--text-dim) !important;
+        }
+
+        /* --- YENİ: Koyu Tema Popup Tasarımı --- */
+        .dark-theme-popup .leaflet-popup-content-wrapper {
+            background: var(--panel) !important;
+            color: var(--text) !important;
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            padding: 6px;
+        }
+
+        .dark-theme-popup .leaflet-popup-tip {
+            background: var(--panel) !important;
+            border-left: 1px solid var(--panel-border);
+            border-bottom: 1px solid var(--panel-border);
+        }
+
+        .custom-popup {
+            font-family: var(--mono);
+            font-size: 11px;
+            line-height: 1.5;
+            min-width: 190px;
+        }
+
+        .custom-popup h3 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            font-weight: 600;
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 6px;
+        }
+
+        .popup-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .popup-row strong {
+            color: var(--text-dim);
+            font-weight: normal;
+        }
+
+        .popup-row span {
+            color: var(--text);
+        }
+
+        .popup-divider {
+            height: 1px;
+            background: var(--panel-border);
+            margin: 8px 0;
+        }
+
+        .popup-row.highlight span {
+            color: var(--accent);
+            font-weight: bold;
+            text-shadow: 0 0 4px rgba(61, 220, 151, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="map"></div>
+
+    <div id="panel">
+        <h1>Araç Takip</h1>
+        <div id="connection-status"><span class="dot" id="status-dot"></span><span id="status-text">bağlanıyor...</span>
+        </div>
+        <div class="spawn-row">
+            <input type="number" id="spawn-count" value="3" min="1" max="20">
+            <button id="spawn-btn">Araç Oluştur</button>
+        </div>
+        <div id="vehicle-list"></div>
+    </div>
+
+    <script>
+        const map = L.map('map', { zoomControl: false }).setView([39.0, 35.0], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        const markers = {};      // vehicleId -> Leaflet marker
+        const vehicleData = {};  // vehicleId -> { name, status, ... }
+        const trails = {};       // vehicleId -> { line: polyline, points: [[lat,lng], ...] }
+
+        // Her araca id'sinden türeyen sabit bir renk ver (rotaları ayırt etmek için)
+        function colorForVehicle(id) {
+            const hue = (Number(id) * 47) % 360;
+            return `hsl(${hue}, 70%, 55%)`;
+        }
+
+        function colorForStatus(status) {
+            if (status === 'MOVING') return '#3d8bfd';
+            if (status === 'ARRIVED') return '#3ddc97';
+            return '#7d8b9e';
+        }
+
+        function makeIcon(status) {
+            const color = colorForStatus(status);
+            const carSvg = `
+      <svg viewBox="0 0 512 512" style="width:20px; height:20px; color:${color}; filter: drop-shadow(0px 0px 4px ${color});" xmlns="http://www.w3.org/2000/svg">
+        <path fill="currentColor" d="M135.2 117.4L109.1 192H402.9l-26.1-74.6C372.3 104.6 360.2 96 346.6 96H165.4c-13.6 0-25.7 8.6-30.2 21.4zM39.6 196.8L74.8 96.3C88.3 57.8 124.6 32 165.4 32H346.6c40.8 0 77.1 25.8 90.6 64.3l35.2 100.5c23.2 9.6 39.6 32.5 39.6 59.2V400v48c0 17.7-14.3 32-32 32H448c-17.7 0-32-14.3-32-32V400H96v48c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32V400 256c0-26.7 16.4-49.6 39.6-59.2zM128 288a32 32 0 1 0 -64 0 32 32 0 1 0 64 0zm288 32a32 32 0 1 0 0-64 32 32 0 1 0 0 64z"/>
+      </svg>
+    `;
+
+            return L.divIcon({
+                className: '',
+                html: carSvg,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+        }
+
+        function upsertMarker(vehicleId, lat, lng, status, name, startLat, startLng, targetLat, targetLng) {
+            // Backend'de bu koordinatlar yoksa, her araç için sabit kalacak simüle koordinatlar üretiyoruz
+            const sLat = (startLat !== undefined && startLat !== null) ? startLat : (vehicleData[vehicleId]?.startLat || (lat - 0.15));
+            const sLng = (startLng !== undefined && startLng !== null) ? startLng : (vehicleData[vehicleId]?.startLng || (lng - 0.20));
+            const tLat = (targetLat !== undefined && targetLat !== null) ? targetLat : (vehicleData[vehicleId]?.targetLat || (lat + 0.18));
+            const tLng = (targetLng !== undefined && targetLng !== null) ? targetLng : (vehicleData[vehicleId]?.targetLng || (lng + 0.25));
+
+            // Mesafe hesaplama (Mesafe birimi metre cinsinden döner)
+            const currentLatLng = L.latLng(lat, lng);
+            const targetLatLng = L.latLng(tLat, tLng);
+            const distanceInMeters = currentLatLng.distanceTo(targetLatLng);
+            let distanceStr = "0 m";
+
+            if (distanceInMeters > 1000) {
+                distanceStr = (distanceInMeters / 1000).toFixed(2) + " km";
+            } else {
+                distanceStr = Math.round(distanceInMeters) + " m";
+            }
+
+            if (status === 'ARRIVED') {
+                distanceStr = "0 m (Ulaştı)";
+            }
+
+            // Araç verisini kaydet/güncelle
+            vehicleData[vehicleId] = {
+                name: name || vehicleData[vehicleId]?.name || ('Araç-' + vehicleId),
+                status,
+                startLat: sLat,
+                startLng: sLng,
+                targetLat: tLat,
+                targetLng: tLng
+            };
+
+
+            const popupContent = `
+      <div class="custom-popup">
+        <h3 style="color: ${colorForStatus(status)}">${vehicleData[vehicleId].name}</h3>
+        <div class="popup-row"><strong>Başlangıç:</strong> <span>${sLat.toFixed(4)}, ${sLng.toFixed(4)}</span></div>
+        <div class="popup-row"><strong>Hedef:</strong> <span>${tLat.toFixed(4)}, ${tLng.toFixed(4)}</span></div>
+        <div class="popup-divider"></div>
+        <div class="popup-row highlight"><strong>Kalan Mesafe:</strong> <span>${distanceStr}</span></div>
+      </div>
+    `;
+
+            if (markers[vehicleId]) {
+                markers[vehicleId].setLatLng([lat, lng]);
+                markers[vehicleId].setIcon(makeIcon(status));
+                // Eğer popup o an açıksa içeriğini canlı güncelle
+                markers[vehicleId].setPopupContent(popupContent);
+            } else {
+                // Yeni eklenen araca popup ı bağla
+                markers[vehicleId] = L.marker([lat, lng], { icon: makeIcon(status) })
+                    .addTo(map)
+                    .bindPopup(popupContent, {
+                        className: 'dark-theme-popup',
+                        closeButton: false
+                    });
+            }
+
+            // Gidilen rotayı izle 
+            if (!trails[vehicleId]) {
+                trails[vehicleId] = {
+                    points: [],
+                    line: L.polyline([], {
+                        color: colorForVehicle(vehicleId),
+                        weight: 3,
+                        opacity: 0.7
+                    }).addTo(map)
+                };
+            }
+            const pts = trails[vehicleId].points;
+            const last = pts[pts.length - 1];
+            // Aynı noktayı tekrar eklemeyelim (duran araç izi şişmesin)
+            if (!last || last[0] !== lat || last[1] !== lng) {
+                pts.push([lat, lng]);
+                trails[vehicleId].line.setLatLngs(pts);
+            }
+
+            renderList();
+        }
+
+        function renderList() {
+            const list = document.getElementById('vehicle-list');
+            list.innerHTML = '';
+            Object.keys(vehicleData).forEach(id => {
+                const v = vehicleData[id];
+                const row = document.createElement('div');
+                row.className = 'vehicle-row';
+                row.innerHTML = `<span class="name">${v.name}</span><span class="status ${v.status.toLowerCase()}">${v.status}</span>`;
+                // Liste elemanına tıklayınca haritada o araca odaklanıp popup'ını açması için  özellik:
+                row.style.cursor = 'pointer';
+                row.addEventListener('click', () => {
+                    const marker = markers[id];
+                    if (marker) {
+                        map.setView(marker.getLatLng(), 12);
+                        marker.openPopup();
+                    }
+                });
+
+                list.appendChild(row);
+            });
+        }
+
+        // Mevcut araçları çekip haritaya işleyen fonksiyon 
+        function loadVehicles() {
+            return fetch('/api/vehicles')
+                .then(res => res.json())
+                .then(vehicles => {
+                    vehicles.forEach(v => {
+                        if (v.currentLat != null && v.currentLng != null) {
+                            upsertMarker(
+                                v.id,
+                                v.currentLat,
+                                v.currentLng,
+                                v.status,
+                                v.name,
+                                v.startLat,
+                                v.startLng,
+                                v.targetLat,
+                                v.targetLng
+                            );
+                        }
+                    });
+                });
+        }
+
+        // İlk yükleme
+        loadVehicles();
+
+        // WebSocket bağlantısı
+        const socket = new SockJS('/ws');
+        const stompClient = Stomp.over(socket);
+        stompClient.debug = null;
+
+        stompClient.connect({}, () => {
+            document.getElementById('status-dot').classList.add('on');
+            document.getElementById('status-text').textContent = 'canlı';
+
+            stompClient.subscribe('/topic/vehicle-updates', (message) => {
+                const event = JSON.parse(message.body);
+                // Canlı güncellemelerde de koordinatları gönderiyoruz
+                upsertMarker(
+                    event.vehicleId,
+                    event.lat,
+                    event.lng,
+                    event.vehicleStatus,
+                    event.vehicleName,
+                    event.startLat,
+                    event.startLng,
+                    event.targetLat,
+                    event.targetLng
+                );
+            });
+        }, () => {
+            document.getElementById('status-text').textContent = 'bağlantı koptu';
+        });
+
+        // Spawn butonu
+        document.getElementById('spawn-btn').addEventListener('click', () => {
+            const count = document.getElementById('spawn-count').value;
+            fetch(`/api/simulation/spawn?count=${count}`, { method: 'POST' })
+                .then(res => res.text())
+                .then(msg => {
+                    console.log(msg);
+                    // Yeni oluşan araçları sayfayı yenilemeden haritaya ekle
+                    loadVehicles();
+                });
+        });
+    </script>
+
+</body>
+
+</html>
