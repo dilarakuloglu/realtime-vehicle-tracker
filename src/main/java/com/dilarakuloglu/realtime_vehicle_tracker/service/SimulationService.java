@@ -1,7 +1,6 @@
 package com.dilarakuloglu.realtime_vehicle_tracker.service;
 
 import java.util.List;
-import java.util.UUID;
 
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -51,9 +50,12 @@ public class SimulationService {
 
     public void spawnVehicles(int count){
         for (int i= 0 ; i<count;i++ ){
+        // id, kayıt sırasında üretildiği için önce geçici isimle kaydediyoruz
         Vehicle vehicle = vehicleService.createVehicleAt(new VehicleCreationDto
-            ("vehicle-" + UUID.randomUUID(),assignRandomLat(),assignRandomLng()));
-            // ...
+            ("vehicle", assignRandomLat(), assignRandomLng()));
+        // sonra üretilen id ile ismi güncelleyip tekrar kaydediyoruz
+        vehicle.setName("vehicle-" + vehicle.getId());
+        vehicleRepository.save(vehicle);
         }
     }
     // IDLE olan arabalara trip atama
