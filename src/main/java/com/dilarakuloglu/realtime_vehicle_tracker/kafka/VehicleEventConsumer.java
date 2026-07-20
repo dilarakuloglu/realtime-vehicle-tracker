@@ -9,6 +9,7 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -17,6 +18,7 @@ public class VehicleEventConsumer {
 
     private final VehicleRepository vehicleRepository;
     private final TripRepository tripRepository;
+     private final SimpMessagingTemplate messagingTemplate;
 
     @KafkaListener(id = "vehicle-tracker-group", topics = "vehicle-location-tracker")
     @Transactional
@@ -32,6 +34,7 @@ public class VehicleEventConsumer {
                 .orElseThrow(() -> new EntityNotFoundException("Trip not found: " + event.tripId()));
         trip.setStatus(event.tripStatus());
         tripRepository.save(trip);
+        messagingTemplate.convertAndSend("/topic/vehicle-updates", event);
         // repositorye kayıt artık kafkaya ait 
     }
 }
