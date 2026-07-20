@@ -26,11 +26,13 @@ public class VehicleService {
         return vehicleRepository.findAll();
         
     }
-    public Vehicle createVehicle(VehicleCreationDto dto){
+    public Vehicle createVehicleAt(VehicleCreationDto dto){
         Vehicle vehicle = new Vehicle();
         vehicle.setName(dto.name());
         vehicle.setStatus(VehicleStatus.IDLE);
-        return vehicleRepository.save(vehicle); // id ile beraber nesne döner.
+        vehicle.setCurrentLat(dto.currentLat());
+        vehicle.setCurrentLng(dto.currentLng());
+        return vehicleRepository.save(vehicle);
     }
 
     public void deleteVehicle(Long id ){
@@ -38,7 +40,6 @@ public class VehicleService {
             throw new EntityNotFoundException ("vehicle not found");
         }
         vehicleRepository.deleteById(id);
-
     }
     
 
