@@ -70,7 +70,9 @@ public class TripService {
                 progressPercent,
                 vehicleStatus,
                 tripStatus,
-                LocalDateTime.now()
+                LocalDateTime.now(),
+                trip.getDestLat(),
+                trip.getDestLng()
         );
 
         vehicleEventProducer.publishLocationUpdate(event); 

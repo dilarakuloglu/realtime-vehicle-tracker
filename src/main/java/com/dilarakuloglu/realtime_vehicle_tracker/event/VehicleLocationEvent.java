@@ -14,7 +14,10 @@ public record VehicleLocationEvent(
         Double progressPercent,
         VehicleStatus vehicleStatus,
         TripStatus tripStatus,
-        LocalDateTime timestamp
+        LocalDateTime timestamp,
+        Double destLat,
+        Double destLng
+
         
 
         // record otomatik olarak toString() üretir.
