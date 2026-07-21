@@ -261,7 +261,62 @@
 
         const markers = {};      // vehicleId -> Leaflet marker
         const vehicleData = {};  // vehicleId -> { name, status, ... }
-        const trails = {};       // vehicleId -> { line: polyline, points: [[lat,lng], ...] }
+        // vehicleId -> { tripId, coords, planned(soluk tüm yol), traveled(koyu geçilen kısım) }
+        const routeState = {};
+
+        // Bir aracın trip rotasını çek, planlanan (soluk) + katedilen (koyu) çizgileri yönet
+        function updateRoute(vehicleId, tripId, progress, lat, lng) {
+            if (tripId == null) return;
+            let st = routeState[vehicleId];
+
+            // Yeni araç ya da yeni trip: eski çizgileri temizle, rotayı yeniden çek
+            if (!st || st.tripId !== tripId) {
+                if (st) {
+                    if (st.planned) map.removeLayer(st.planned);
+                    if (st.traveled) map.removeLayer(st.traveled);
+                }
+                st = routeState[vehicleId] = { tripId, coords: null, planned: null, traveled: null };
+                const color = colorForVehicle(vehicleId);
+                fetch(`/api/trips/${tripId}/route`)
+                    .then(r => r.json())
+                    .then(coords => {
+                        if (!coords || coords.length === 0) return;
+                        if (routeState[vehicleId] !== st) return; // bu arada trip değiştiyse bırak
+                        st.coords = coords;
+                        // Kümülatif mesafeler (metre) — idx'i backend'le aynı şekilde mesafeye göre bulmak için
+                        const cum = [0];
+                        for (let i = 1; i < coords.length; i++) {
+                            cum[i] = cum[i - 1] + L.latLng(coords[i - 1]).distanceTo(L.latLng(coords[i]));
+                        }
+                        st.cum = cum;
+                        st.total = cum[coords.length - 1];
+                        // Planlanan tüm yol: soluk, kesikli
+                        st.planned = L.polyline(coords, {
+                            color, weight: 3, opacity: 0.25, dashArray: '4,6'
+                        }).addTo(map);
+                        // Katedilen kısım: koyu
+                        st.traveled = L.polyline([], { color, weight: 4, opacity: 0.9 }).addTo(map);
+                        drawTraveled(vehicleId, progress, lat, lng);
+                    });
+                return;
+            }
+            drawTraveled(vehicleId, progress, lat, lng);
+        }
+
+        // Rotanın 0 → progress kadarını koyu çiz, ucuna aracın tam anlık konumunu ekle
+        // idx'i NOKTA SAYISINA göre değil, KÜMÜLATİF MESAFEYE göre buluyoruz (backend'le tutarlı)
+        function drawTraveled(vehicleId, progress, lat, lng) {
+            const st = routeState[vehicleId];
+            if (!st || !st.coords || !st.traveled || !st.cum) return;
+            const target = (progress || 0) * st.total;   // katedilen mesafe (metre)
+            const cum = st.cum;
+            // kümülatif mesafesi target'i geçmeyen son nokta
+            let idx = 0;
+            while (idx < cum.length - 1 && cum[idx + 1] <= target) idx++;
+            const seg = st.coords.slice(0, idx + 1);
+            seg.push([lat, lng]);   // aracın tam anlık konumu (aynı segment üstünde, minik uzatma)
+            st.traveled.setLatLngs(seg);
+        }
 
         // Her araca id'sinden türeyen sabit bir renk ver (rotaları ayırt etmek için)
         function colorForVehicle(id) {
@@ -354,25 +409,7 @@
                     });
             }
 
-            // Gidilen rotayı izle 
-            if (!trails[vehicleId]) {
-                trails[vehicleId] = {
-                    points: [],
-                    line: L.polyline([], {
-                        color: colorForVehicle(vehicleId),
-                        weight: 3,
-                        opacity: 0.7
-                    }).addTo(map)
-                };
-            }
-            const pts = trails[vehicleId].points;
-            const last = pts[pts.length - 1];
-            // Aynı noktayı tekrar eklemeyelim (duran araç izi şişmesin)
-            if (!last || last[0] !== lat || last[1] !== lng) {
-                pts.push([lat, lng]);
-                trails[vehicleId].line.setLatLngs(pts);
-            }
-
+            // Rota çizimi (planlanan + katedilen) WS event'inde updateRoute ile yapılıyor
             renderList();
         }
 
@@ -448,6 +485,8 @@
                     event.destLng,
                     event.speedKmh
                 );
+                // Planlanan (soluk) + katedilen (koyu) rotayı çiz
+                updateRoute(event.vehicleId, event.tripId, event.progressPercent, event.lat, event.lng);
             });
         }, () => {
             document.getElementById('status-text').textContent = 'bağlantı koptu';
