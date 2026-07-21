@@ -34,6 +34,9 @@ public class Trip {
     private Double destLng;
 
 
+    @Column(columnDefinition = "TEXT")
+private String routeGeometryJson;
+
 
     
 }
