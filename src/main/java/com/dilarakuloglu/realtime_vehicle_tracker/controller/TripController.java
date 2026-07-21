@@ -29,6 +29,12 @@ public class TripController {
         return tripService.getActiveTrips();
     }
 
+    // Bir trip'in yol noktaları [lat,lng] — frontend rotayı çizmek için kullanır
+    @GetMapping("/{id}/route")
+    public List<List<Double>> getTripRoute(@PathVariable Long id) {
+        return tripService.getRoutePoints(id);
+    }
+
     @PostMapping
     public Trip createTrip(@RequestBody TripCreationDto request) {
         return tripService.createTrip(request);
