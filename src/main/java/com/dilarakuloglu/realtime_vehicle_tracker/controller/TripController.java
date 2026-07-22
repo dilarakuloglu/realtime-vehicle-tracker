@@ -1,6 +1,6 @@
 package com.dilarakuloglu.realtime_vehicle_tracker.controller;
 import com.dilarakuloglu.realtime_vehicle_tracker.dto.TripCreationDto;
-import com.dilarakuloglu.realtime_vehicle_tracker.entity.Trip;
+import com.dilarakuloglu.realtime_vehicle_tracker.dto.TripResponseDto;
 import com.dilarakuloglu.realtime_vehicle_tracker.service.TripService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -15,18 +15,24 @@ public class TripController {
     private final TripService tripService;
 
     @GetMapping
-    public List<Trip> getAllTrips() {
-        return tripService.getAllTrips();
+    public List<TripResponseDto> getAllTrips() {
+        return tripService.getAllTrips()
+                .stream()
+                .map(TripResponseDto::from)
+                .toList();
     }
 
     @GetMapping("/{id}")
-    public Trip getTripById(@PathVariable Long id) {
-        return tripService.getTripById(id);
+    public TripResponseDto getTripById(@PathVariable Long id) {
+        return TripResponseDto.from(tripService.getTripById(id));
     }
 
     @GetMapping("/active")
-    public List<Trip> getActiveTrips() {
-        return tripService.getActiveTrips();
+    public List<TripResponseDto> getActiveTrips() {
+        return tripService.getActiveTrips()
+                .stream()
+                .map(TripResponseDto::from)
+                .toList();
     }
 
     // Bir trip'in yol noktaları [lat,lng] — frontend rotayı çizmek için kullanır
@@ -36,7 +42,7 @@ public class TripController {
     }
 
     @PostMapping
-    public Trip createTrip(@RequestBody TripCreationDto request) {
-        return tripService.createTrip(request);
+    public TripResponseDto createTrip(@RequestBody TripCreationDto request) {
+        return TripResponseDto.from(tripService.createTrip(request));
     }
 }
