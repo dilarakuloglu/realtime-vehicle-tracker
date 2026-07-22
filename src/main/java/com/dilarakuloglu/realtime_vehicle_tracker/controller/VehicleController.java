@@ -1,8 +1,9 @@
 package com.dilarakuloglu.realtime_vehicle_tracker.controller;
 
 import com.dilarakuloglu.realtime_vehicle_tracker.dto.VehicleCreationDto;
-import com.dilarakuloglu.realtime_vehicle_tracker.entity.Vehicle;
+import com.dilarakuloglu.realtime_vehicle_tracker.dto.VehicleResponseDto;
 import com.dilarakuloglu.realtime_vehicle_tracker.service.VehicleService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,18 +17,21 @@ public class VehicleController {
     private final VehicleService vehicleService;
 
     @GetMapping
-    public List<Vehicle> getAllVehicles() {
-        return vehicleService.getAllVehicles();
+    public List<VehicleResponseDto> getAllVehicles() {
+        return vehicleService.getAllVehicles()
+                .stream()
+                .map(VehicleResponseDto::from)
+                .toList();
     }
 
     @GetMapping("/{id}")
-    public Vehicle getVehicleById(@PathVariable Long id) {
-        return vehicleService.getVehicleById(id);
+    public VehicleResponseDto getVehicleById(@PathVariable Long id) {
+        return VehicleResponseDto.from(vehicleService.getVehicleById(id));
     }
 
     @PostMapping
-    public Vehicle createVehicle(@RequestBody VehicleCreationDto dto) {
-        return vehicleService.createVehicleAt(dto);
+    public VehicleResponseDto createVehicle(@RequestBody @Valid VehicleCreationDto dto) {
+        return VehicleResponseDto.from(vehicleService.createVehicleAt(dto));
     }
 
     @DeleteMapping("/{id}")
