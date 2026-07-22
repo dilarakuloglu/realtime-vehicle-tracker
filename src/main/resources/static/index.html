@@ -521,35 +521,57 @@
         // İlk yükleme
         loadVehicles();
 
-        // WebSocket bağlantısı
-        const socket = new SockJS('/ws');
-        const stompClient = Stomp.over(socket);
-        stompClient.debug = null;
+        // WebSocket bağlantısı — koptuğunda kendini yeniden bağlar
+        let stompClient = null;
+        let reconnectTimer = null;
 
-        stompClient.connect({}, () => {
-            document.getElementById('status-dot').classList.add('on');
-            document.getElementById('status-text').textContent = 'live';
+        function connectWebSocket() {
+            // SockJS soketi kapandıktan sonra yeniden kullanılamaz; her denemede yenisini kur
+            const socket = new SockJS('/ws');
+            stompClient = Stomp.over(socket);
+            stompClient.debug = null;
 
-            stompClient.subscribe('/topic/vehicle-updates', (message) => {
-                const event = JSON.parse(message.body);
-                // Canlı güncellemelerde de koordinatları gönderiyoruz
-                upsertMarker(
-                    event.vehicleId,
-                    event.lat,
-                    event.lng,
-                    event.vehicleStatus,
-                    event.vehicleName,
-                    event.startLat,
-                    event.startLng,
-                    event.destLat,
-                    event.destLng,
-                    event.speedKmh
-                );
-                updateRoute(event.vehicleId, event.tripId, event.progressPercent, event.lat, event.lng);
+            stompClient.connect({}, () => {
+                // Bağlandı
+                document.getElementById('status-dot').classList.add('on');
+                document.getElementById('status-text').textContent = 'live';
+                // Kopukken kaçırılan durumları yeniden senkronla
+                loadVehicles();
+
+                stompClient.subscribe('/topic/vehicle-updates', (message) => {
+                    const event = JSON.parse(message.body);
+                    upsertMarker(
+                        event.vehicleId,
+                        event.lat,
+                        event.lng,
+                        event.vehicleStatus,
+                        event.vehicleName,
+                        event.startLat,
+                        event.startLng,
+                        event.destLat,
+                        event.destLng,
+                        event.speedKmh
+                    );
+                    updateRoute(event.vehicleId, event.tripId, event.progressPercent, event.lat, event.lng);
+                });
+            }, () => {
+                // Hata / kopma 
+                document.getElementById('status-dot').classList.remove('on');
+                document.getElementById('status-text').textContent = 'reconnecting...';
+                scheduleReconnect();
             });
-        }, () => {
-            document.getElementById('status-text').textContent = 'bağlantı koptu';
-        });
+        }
+
+        // Aynı anda yalnızca tek yeniden bağlanma planı
+        function scheduleReconnect() {
+            if (reconnectTimer) return;
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                connectWebSocket();
+            }, 3000);
+        }
+
+        connectWebSocket();
 
         // Spawn butonu
         document.getElementById('spawn-btn').addEventListener('click', () => {
