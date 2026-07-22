@@ -165,30 +165,10 @@ public class TripService {
         List <Trip>activeTrips = getTripsByStatus(TripStatus.IN_PROGRESS);
         return activeTrips;
     }
-    
-    public Long estimateDurationSeconds(Long tripId ){
-        Trip trip = getTripById(tripId);
-        double distanceKm= GeoUtils.calculateDistance(trip.getOriginLat(),trip.getOriginLng(),trip.getDestLat(),trip.getDestLng());
-        double hours = distanceKm / trip.getSpeedKmh();
-        return Math.round(hours*3600);
-    }
 
     public List<Trip> getAllTrips() {
     return tripRepository.findAll();
     }
-
-     /* 
-    public void startTrip(Long tripId){
-        Trip trip = getTripById(tripId);
-        if(trip.getStatus() != TripStatus.IN_PROGRESS){
-            throw new IllegalStateException();
-        }
-        trip.setStatus(TripStatus.IN_PROGRESS);
-        tripRepository.save(trip);
-        // test
-        System.out.print("start time :" + trip.getStatus());
-        }
-        */
 
     @Transactional
     public Trip createTrip(TripCreationDto dto) {
@@ -234,8 +214,6 @@ public class TripService {
         trip.setStartTime(LocalDateTime.now());
         trip.setEstimatedDurationSeconds(durationSeconds);
         
-        // test
-        System.out.print(trip.getStatus());
         return tripRepository.save(trip); // kafka entegrasyonu 
     }
 
